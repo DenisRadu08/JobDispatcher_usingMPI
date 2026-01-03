@@ -9,7 +9,11 @@
 #define STOP_TAG 0
 
 #define CMD_SIZE 100
-#define MAX_RESULT_SIZE 500000
+#define MAX_RESULT_SIZE 5000000
+#define DEBUG
+
+double START_TIME=0.0;
+#define TIME (MPI_Wtime() - START_TIME)
 
 int is_prime(int n) {
     if (n<2) return 0;
@@ -75,6 +79,19 @@ void permute(char *a, int left,int right, char *buffer, int *offset) {
     }
 }
 
+void permute_for_serial(char *a,int left, int right, FILE *f) {
+    if (left==right) {
+        fprintf(f,"%s\n",a);
+    }
+    else {
+        for (int i=left; i<=right; i++) {
+            swap((a+left), (a+i));
+            permute_for_serial(a,left+1,right,f);
+            swap((a+left), (a+i));
+        }
+    }
+}
+
 void solve_anagrams(char *str,char *output_buffer, int*current_offset) {
     int n=strlen(str);
     permute(str,0,n-1,output_buffer,current_offset);
@@ -88,8 +105,10 @@ int get_next_command(FILE *file, char *line) {
 
         if (strncmp(line,"WAIT",4)==0) {
             int seconds=atoi(line+5);
-            printf("[Master] Waiting for %d seconds...\n",seconds);
+#ifdef DEBUG
+            printf("[Time: %.4f] [Master] Waiting for %d seconds...\n",TIME,seconds);
             fflush(stdout);
+#endif
             sleep(seconds);
         }
         else {
@@ -107,9 +126,9 @@ void write_result(char *response_buffer) {
     char *actual_result=response_buffer + strlen(client_id)+1;
 
     char filename[50];
-    sprintf(filename,"%s.out",client_id);
+    sprintf(filename,"%s_par.out",client_id);
 
-    FILE *file = fopen(filename,"w");
+    FILE *file = fopen(filename,"a");
 
     if (file==NULL) {
         printf("Error opening output file %s\n",filename);
@@ -121,15 +140,18 @@ void write_result(char *response_buffer) {
         printf("Error closing file %s\n",filename);
     }
 
-    printf("[Master] Wrote result to %s\n",filename);
+#ifdef DEBUG
+    printf("[Time: %.4f] [Master] Wrote result to %s\n",TIME,filename);
     fflush(stdout);
-
+#endif
 }
 
 void master_process(int nProcesses, char *inputFileName) {
 
-    printf("[Master] has started. Workers: %d.\n", nProcesses-1);
+#ifdef DEBUG
+    printf("[Time: %.4f] [Master] has started. Workers: %d.\n",TIME, nProcesses-1);
     fflush(stdout);
+#endif
 
     char *response=(char*)malloc(MAX_RESULT_SIZE*sizeof(char));
 
@@ -148,8 +170,11 @@ void master_process(int nProcesses, char *inputFileName) {
     for (int i=1;i<nProcesses;i++) {
         if (get_next_command(file,line)) {
             MPI_Send(line,CMD_SIZE,MPI_CHAR,i,WORK_TAG,MPI_COMM_WORLD);
-            printf("[Master] Sending command: %s to Worker %d\n",line,i);
+#ifdef DEBUG
+            printf("[Time: %.4f] [Master] Sending command: %s to Worker %d\n",TIME,line,i);
             fflush(stdout);
+#endif
+
             active_workers++;
         }
         else {
@@ -183,8 +208,11 @@ void master_process(int nProcesses, char *inputFileName) {
     }
 
     free(response);
-    printf("[Master] All commands executed. Shutting down.\n");
+
+#ifdef DEBUG
+    printf("[Time: %.4f] [Master] All commands executed. Shutting down.\n",TIME);
     fflush(stdout);
+#endif
 }
 
 void worker_process(int rank) {
@@ -200,9 +228,11 @@ void worker_process(int rank) {
     while (1) {
         MPI_Recv(input,CMD_SIZE,MPI_CHAR,0,MPI_ANY_TAG,MPI_COMM_WORLD,&status);
         if (status.MPI_TAG == STOP_TAG) {
-
-            printf("[Worker %d] I received the stopping signal. Exiting!\n",rank);
+#ifdef DEBUG
+            printf("[Time: %.4f] [Worker %d] I received the stopping signal. Exiting!\n",TIME,rank);
             fflush(stdout);
+#endif
+
             break;
         }
         else if (status.MPI_TAG == WORK_TAG) {
@@ -234,12 +264,59 @@ void worker_process(int rank) {
 
             MPI_Send(large_buffer,offset+1,MPI_CHAR,0,READY_TAG,MPI_COMM_WORLD);
 
-            printf("[Worker %d] Finished %s. Sent %d bytes.\n",rank,command,offset);
+#ifdef DEBUG
+            printf("[Time: %.4f] [Worker %d] Finished %s. Sent %d bytes.\n",TIME,rank,command,offset);
             fflush(stdout);
-
+#endif
         }
     }
     free(large_buffer);
+}
+
+void solve_serial(char *input) {
+
+#ifdef DEBUG
+    printf("[Serial] Started.\n");
+#endif
+
+    FILE *file=fopen(input,"r");
+    if (file==NULL) {
+        printf("Error opening file %s.\n",input);
+        return;
+    }
+
+    char line[CMD_SIZE];
+    while (get_next_command(file,line)) {
+        char client_id[20],command[20],argument[50];
+        sscanf(line,"%s %s %s",client_id,command,argument);
+
+        char filename[50];
+        sprintf(filename,"%s_ser.out",client_id);
+        FILE *f_out=fopen(filename,"a");
+        if (f_out==NULL) {
+            printf("Error opening file %s.\n",filename);
+            return;
+        }
+
+        if (strcmp(command,"PRIMES")==0) {
+            fprintf(f_out,"%d\n",count_primes(atoi(argument)));
+        }
+        else if (strcmp(command,"PRIMEDIVISORS")==0) {
+            fprintf(f_out,"%d\n",count_prime_divisors(atoi(argument)));
+        }
+        else if (strcmp(command,"ANAGRAMS")==0) {
+            permute_for_serial(argument,0,strlen(argument)-1,f_out);
+        }
+
+        if (fclose(f_out)!=0) {
+            printf("Error closing file %s.\n",filename);
+            return;
+        }
+    }
+    if (fclose(file)!=0) {
+        printf("Error closing file.\n");
+        return;
+    }
 }
 
 int main(int argc, char** argv) {
@@ -258,6 +335,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    START_TIME=MPI_Wtime();
+    double start_par=START_TIME;
+
     if (rank==0) {
         if (argc<2) {
             printf("Execute as: mpiexec -n N %s <input_file>\n", argv[0]);
@@ -271,6 +352,25 @@ int main(int argc, char** argv) {
     }
     else {
         worker_process(rank);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    double end_par=MPI_Wtime();
+    double time_par=end_par-start_par;
+
+
+    if (rank==0 && argc>=2) {
+        printf("\n--- PERFORMANCE MEASUREMENTS ---\n");
+        printf("Parallel time (%d processes): %f seconds\n",nProcesses,time_par);
+
+        double start_ser=MPI_Wtime();
+        solve_serial(argv[1]);
+        double end_ser=MPI_Wtime();
+        double time_ser=end_ser-start_ser;
+        printf("Serial time: %f seconds\n",time_ser);
+
+        double speedup=time_ser/time_par;
+        printf("SPEEDUP: %f\n",speedup);
     }
 
     MPI_Finalize();
