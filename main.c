@@ -126,7 +126,7 @@ void write_result(char *response_buffer) {
     char *actual_result=response_buffer + strlen(client_id)+1;
 
     char filename[50];
-    sprintf(filename,"%s_par.out",client_id);
+    sprintf(filename,"output_files/%s_par.out",client_id);
 
     FILE *file = fopen(filename,"a");
 
@@ -291,7 +291,7 @@ void solve_serial(char *input) {
         sscanf(line,"%s %s %s",client_id,command,argument);
 
         char filename[50];
-        sprintf(filename,"%s_ser.out",client_id);
+        sprintf(filename,"output_files/%s_ser.out",client_id);
         FILE *f_out=fopen(filename,"a");
         if (f_out==NULL) {
             printf("Error opening file %s.\n",filename);
@@ -323,6 +323,7 @@ int main(int argc, char** argv) {
 
     int rank,nProcesses;
     MPI_Init(&argc, &argv);
+
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nProcesses);
