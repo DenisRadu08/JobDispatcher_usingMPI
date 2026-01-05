@@ -45,36 +45,55 @@ graph TD
     Master -->|Write| Log
     Master -->|Write| ClientFiles
 ```
-📋 Requirements
-C Compiler (GCC recommended)
+## 📋 Requirements
+* C Compiler (GCC recommended)
 
-MPI Implementation (e.g., MPICH, OpenMPI on Linux, or MS-MPI on Windows)
+* MPI Implementation (e.g., MPICH, OpenMPI on Linux, or MS-MPI on Windows)
 
-🔧 Compilation & Usage
-1. Compilation
-   On Linux (OpenMPI/MPICH):
-   gcc -g job_dispatcher.c -I "C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -L "C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" -lmsmpi -o job_dispatcher.exe
+## 🔧 Compilation & Usage
 
-2. Running the Application
-      To run the simulation with N processes (1 Master + N-1 Workers):
-   mpiexec -n 4 job_dispatcher input_commands.txt
-   Replace 4 with the desired number of processes.
+### 1. Compilation
 
-📂 Input & Output Format
-Input File Example (commands.txt):
+**On Linux (OpenMPI/MPICH):**
+The wrapper compiler `mpicc` is recommended as it automatically handles paths and libraries.
+```bash
+mpicc -O3 job_dispatcher.c -o job_dispatcher
+```
 
+**On Windows (MS-MPI with MinGW/GCC):**
+You need to link against the Microsoft MPI libraries. Adjust paths if necessary.
+```bash
+gcc job_dispatcher.c -I "C:\Program Files (x86)\Microsoft SDKs\MPI\Include" -L "C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" -lmsmpi -o job_dispatcher.exe
+```
+
+### 2. Running the Application
+To run the simulation with N processes (1 Master + N-1 Workers):
+```bash
+mpiexec -n 7 job_dispatcher input_commands.txt
+```
+Replace 7 with the desired number of processes.
+
+## 📂 Input & Output Format
+**Input File Example (`commands.txt`):**
+```text
 CLI0 PRIMEDIVISORS 452876
 CLI1 ANAGRAMS tralala
 CLI2 PRIMEDIVISORS 129072
 WAIT 2
 CLI3 PRIMES 2908764
+```
+**Output:**
+* **Client Files:** Results are saved in the `output_files/` directory (e.g., `output_files/CLI0_par.out`).
+* **Console Log:** Real-time execution flow with relative timestamps:
+```text
+[Time: 0.0001] [Master] Sending command: CLI0 PRIMEDIVISORS 452876 to Worker 1
+[Time: 0.0002] [Master] Dispatched CLI1 to Worker 2
+[Time: 0.0543] [Master] Wrote result to output_files/CLI0_par.out
+```
 
-Output
-Client Files: CLI0.out, CLI1.out, etc. (Containing the result of the command).
-General Log: A file recording the flow of execution:
-[TIME] Received: CLI0 PRIMEDIVISORS 452876
-[TIME] Dispatched CLI0 to Worker 1
-[TIME] Finished CLI0 (Worker 1)
+## 📊 Performance Analysis
+* The project includes a performance measurement module that compares the Parallel Execution Time against a Serial Implementation. Speedup is calculated to demonstrate the efficiency of the cluster.
 
-📊 Performance Analysis
-The project includes a performance measurement module that compares the Parallel Execution Time against a Serial Implementation. Speedup is calculated to demonstrate the efficiency of the cluster.
+## 👤 Author
+
+**Denis-Răzvan Radu** Computer Engineering Student at Politehnica University of Timișoara.
