@@ -4,6 +4,14 @@
 #include <mpi.h>
 #include <unistd.h>
 
+#ifdef _WIN32
+    #include <direct.h>
+#else
+    #include <sys/stat.h>
+    #include <sys/types.h>
+#endif
+
+
 #define READY_TAG 2
 #define WORK_TAG 1
 #define STOP_TAG 0
@@ -334,6 +342,15 @@ int main(int argc, char** argv) {
         }
         MPI_Finalize();
         return 1;
+    }
+
+    if (rank==0) {
+#ifdef _WIN32
+        _mkdir("output_files");
+#else
+        mkdir("output_files", 0777);
+#endif
+
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
